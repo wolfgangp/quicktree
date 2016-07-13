@@ -1,8 +1,8 @@
 bl_info = {
 "name": "Quick Tree",
 "author": "Wolfgang Pratl",
-"version": (0, 0, 1),
-"blender": (2, 76, 0),
+"version": (0, 0, 2),
+"blender": (2, 77, 0),
 "location": "View3D > Add > Curve",
 "description": ("Quick and randomized use of Sapling_3. See "
     "https://github.com/abpy/improved-sapling-tree-generator"),
@@ -17,6 +17,12 @@ else:
 
 import bpy
 from os.path import dirname, join, split
+
+"""
+Magic operator context that will always work!
+#[12:59:12] <ideasman42> you can always do bpy.ops.foo(dict(object=my_obj, scene=mys_cene))
+"""
+
 
 class QuickTree(bpy.types.Panel):
     bl_label = "Quick Tree"
@@ -142,64 +148,31 @@ class RandomData(bpy.types.Operator):
             ob.select = False
             if (ob.type == "CURVE" or ob.type == "MESH") and ob.name == "tree":
                 ob.select = True
-                bpy.context.scene.objects.active = ob
-                #ob.data.use_uv_as_generated = True
+                ####bpy.context.scene.objects.active = ob
+                context.scene.objects.active = ob
+                ####ob.data.use_uv_as_generated = True
                 tree = ob
         return tree
+
+    def select_leaves(self, context):
+        for ob in context.scene.objects:
+            ob.select = False
+            # context.scene.objects.active = ob
+            bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+            if ob.type == "MESH" and ob.name == "leaves":
+                leaves = ob
+                leaves.select = True
+                context.scene.objects.active = leaves
+                # context.scene.objects.active = ob
+                #ob.data.use_uv_as_generated = True
+
+        return leaves
 
     def export(self, context):
         """ select treeArm -> tree (the curve) and in object mode using 
         the data (curve) tab check 'use UV for mapping' """
         tree = self.select_tree(context)
         tree.data.use_uv_as_generated = True
-        
-        original_area = context.area.type
-
-        """
-        #this will be quite complicated. let's try doing it with the convert operator below
-        #stuck at new mesh has wrong place in scenegraph and no uv_layers
-
-        for ob in context.scene.objects:
-            if ob.type == "CURVE" and ob.name == "tree":
-                ob.select = True
-                bpy.context.scene.objects.active = ob
-                ob.data.use_uv_as_generated = True
-                mesh_name = ob.data.name
-                mesh_parent = ob.parent
-                mesh = ob.to_mesh(context.scene, True, 'PREVIEW')  # or 'RENDER'
-                mesh.name = mesh_name
-                #ob.data = mesh
-
-                treemesh = bpy.data.objects.new("tree", mesh)
-                context.scene.objects.link(treemesh)
-                treemesh.parent = mesh_parent
-                treemesh.uv_textures.new("")
-                #mesh.select = True
-                #bpy.context.scene.objects.active = mesh
-                bpy.context.area.type = 'IMAGE_EDITOR'
-                #bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-
-                #re-accessing
-                print(treemesh.uv_layers)
-                bpy.ops.mesh.reveal()
-                bpy.ops.uv.select_all({'area':bpy.context.area}, action='SELECT')
-                #rotate 90
-                bpy.ops.transform.rotate(value=1.5708, axis=(-0, -0, -1))
-                #scale y up massively.
-                bpy.ops.transform.resize(value=(8.57624, 8.57624, 8.57624), 
-                                         constraint_axis=(False, True, False))
-                #scale x down even more.
-                bpy.ops.transform.resize(value=(0.792738, 0.792738, 0.792738), 
-                                         constraint_axis=(True, False, False))
-                #scale up uniformly.
-                bpy.ops.transform.resize(value=(2.15924, 2.15924, 2.15924), 
-                                         constraint_axis=(False, False, False))
-
-                context.area.type = original_area
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        """
-
-        #[12:59:12] <ideasman42> you can always do bpy.ops.foo(dict(object=my_obj, scene=mys_cene))
 
         # #use alt+c to convert to mesh: "Mesh from Curve"
         bpy.ops.object.convert(dict(object=tree, scene=context.scene), target='MESH')
@@ -236,9 +209,20 @@ class RandomData(bpy.types.Operator):
                                  constraint_axis=(False, False, False))
 
         #load textures
-        print(context.window_manager.bark_base_tex, 
-              context.window_manager.bark_normal_tex, 
-              context.window_manager.leaf_base_tex)
+        # print(context.window_manager.bark_base_tex, 
+        #       context.window_manager.bark_normal_tex, 
+        #       context.window_manager.leaf_base_tex)
+
+        #assert context.window_manager.bark_base_tex
+
+        #REMOVE
+        # use some defaults for textures
+        if not context.window_manager.bark_base_tex:
+            context.window_manager.bark_base_tex = "/home/juzzuj/code/eclipse_workspace/GlideGolf/glidegolf/models/trees/tex/bark1.tga"
+        if not context.window_manager.bark_normal_tex:
+            context.window_manager.bark_normal_tex = "/home/juzzuj/code/eclipse_workspace/GlideGolf/glidegolf/models/trees/tex/bark1_nmp.tga"
+        if not context.window_manager.leaf_base_tex:
+            context.window_manager.leaf_base_tex = "/home/juzzuj/code/eclipse_workspace/GlideGolf/glidegolf/models/trees/tex/ferny_spring1.png"
 
         #bark material + textures
         bark_base_tex = bpy.data.textures.new('bark_base', type='IMAGE')
@@ -254,6 +238,7 @@ class RandomData(bpy.types.Operator):
         bark.pbepbs.ior = 1.5
         bark.pbepbs.roughness = 0.85
         bark.pbepbs.normal_strength = 0.8
+        # bark.pbepbs.normal_strength = 1.0
 
         for tex in (bark_base_tex, bark_normal_tex):
             slot = bark.texture_slots.add()
@@ -282,32 +267,73 @@ class RandomData(bpy.types.Operator):
         slot.mapping = 'FLAT'
         slot.uv_layer = 'leafUV'
 
-        for ob in context.scene.objects:
-            if ob.type == "MESH" and ob.name == "leaves":
-                ob.select = True
-                bpy.context.scene.objects.active = ob
-                break
-        else:
-            self.report({'INFO'}, "Couldn't find leaves!")
-
+        leaves = self.select_leaves(context)
         context.object.data.materials.append(leaf)
+
+        # bpy.ops.object.shade_smooth(dict(object=ob, scene=context.scene))
+        ####### use_auto_smooth must be on to export vertex normals!
+        context.area.type = 'VIEW_3D'
+        bpy.ops.object.shade_smooth()
+        context.object.data.use_auto_smooth = True
+
+        """
+        see
+        https://blenderartists.org/forum/showthread.php?284736-Normals-Editing-in-Blender&p=2713763&viewfull=1#post2713763
+        
+        1. apply modifier to reorient clnors (C-implemented loop normals)
+        2. calc_normals_split()
+        3. take a peek
+            for lidx in C.object.data.polygons[5].loop_indices:
+                C.object.data.loops[lidx].normal  # all 0
+        4. don't try to assign new vertex normals from the now correct loop normals.
+           Instead make YABEE fetch the loop normals as custom vertex normals at export time.
+
+        map_vertex2loop = {C.object.data.loops[lidx].vertex_index: lidx for p in 
+          C.object.data.polygons for lidx in p.loop_indices} 
+
+        for p in C.object.data.polygons:
+            for lidx in p.loop_indices:
+                C.object.data.vertices[C.object.data.loops[lidx].vertex_index].normal = C.object.data.loops[lidx].normal
+        """
+        # bpy.ops.object.mode_set(mode='OBJECT')
+        # context.scene.objects.active = leaves
+        # leaves.select = True
+        #maybe remove windSway modifier
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        leaves.data.create_normals_split()
+        splitnormals_mod = leaves.modifiers.new("Set Split Normals", "NORMAL_EDIT")
+        # using a very rough spherical approximation of veggie shape here.
+        # the center from which vertex normals radiate outward is at X=0 Y=0 Z=half veggie scale.
+        # print("Split mod data:", dir(splitnormals_mod), splitnormals_mod.offset)
+        splitnormals_mod.offset[2] = preferences["scale"] / 2
+        #print("Leaves custom split normals data: ", leaves.data.has_custom_normals)
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Set Split Normals")
+        leaves.data.calc_normals_split()  # now leaves.data.has_custom_normals is True
+        #print("Leaves custom split normals data: ", leaves.data.has_custom_normals)
 
         #select stuff for export: leaves, tree and treeArm
         for ob in context.scene.objects:
             ob.select = ((ob.type == "MESH" or ob.type == "ARMATURE") and 
                          ob.name.startswith(("tree", "leaves")))
 
+        context.scene.yabee_settings.opt_tbs_proc = 'NO'
         context.scene.yabee_settings.opt_anims_from_actions = True
         context.scene.yabee_settings.opt_separate_anim_files = False
         context.scene.yabee_settings.opt_copy_tex_files = True
         context.scene.yabee_settings.opt_merge_actor = True
-        context.scene.yabee_settings.opt_apply_modifiers = True
+        context.scene.yabee_settings.opt_apply_modifiers = False  # True
+        context.scene.yabee_settings.opt_use_loop_normals = True
         context.scene.yabee_settings.opt_export_pbs = True
+
+        #this is important or else all settings above will be overwritten by default YABEE settings.
+        context.scene.yabee_settings.first_run = False
+
         #bpy.ops.export.panda3d_egg(filepath=export_fn_egg)
         #will save to parent directory of directory the bark texture is in
         bpy.ops.export.panda3d_egg(filepath=join(
             dirname(dirname(context.window_manager.bark_base_tex)), 
             "freshtree.egg"))
+
 
 def register():
     bpy.utils.register_module(__name__)

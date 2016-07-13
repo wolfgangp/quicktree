@@ -29,8 +29,10 @@ wind = {
 
 export_presets = {
 "showLeaves": True,
-"useArm": True,
-"armAnim": True,
+#"useArm": True,
+#"armAnim": True,
+"useArm": False,
+"armAnim": False,
 "loopFrames": 60
 #"previewArm": True,
 }
@@ -98,7 +100,7 @@ def randomize(var):
         return rnd(var)
 
 def rnd(var):
-    #a single value
+    # a single value
     if isinstance(var, (float, int, str, bool)):
         return var
     else:  # randomize tuple
