@@ -24,17 +24,16 @@ preferences = {
 
 wind = {
 "wind": 0.35,
-"armLevels": 1,
+"armLevels": 2  #1
 }
 
 export_presets = {
 "showLeaves": True,
-#"useArm": True,
-#"armAnim": True,
-"useArm": False,
-"armAnim": False,
+"useArm": True,
+"makeMesh": False,
+"armAnim": True,
+"frameRate": 30,
 "loopFrames": 60
-#"previewArm": True,
 }
 
 lowpoly_presets = {
@@ -51,6 +50,10 @@ leaves = {
 "leaves": (8, 14),
 "leafScale": (0.8, 1.13),
 }
+
+"""
+######## Very coarse randomization
+"""
 
 very_coarse_randomize = {
 "shape": ("0", "1", "2", "3", "4", "5", "6", "7", "10"),  # whole tree. shapeList3
@@ -72,6 +75,10 @@ def very_coarse_rules(vc):
         vc["downAngle"][2] = rnd((45., 90.))
     return vc
 
+"""
+######## Coarse randomization
+"""
+
 coarse_randomize = {
 "leafDist": "6",  # leaf distribution. shapeList4
 "rootFlare": (1.0, 1.8),
@@ -83,10 +90,19 @@ coarse_randomize = {
 def coarse_rules(c):
     return c
 
-quirks_randomize = {
-
+"""
+######## Odd branch
+"""
+quirk_randomize = {
+"lengthV": [0., (0.4, 0.8), 0., 0.]
 }
 
+def quirk_rules(q):
+    return q
+
+"""
+######## Utilities
+"""
 def rand_dict(d):
     return {k: randomize(v) for k, v in d.items()}
 

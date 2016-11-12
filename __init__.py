@@ -1,8 +1,8 @@
 bl_info = {
 "name": "Quick Tree",
 "author": "Wolfgang Pratl",
-"version": (0, 0, 2),
-"blender": (2, 77, 0),
+"version": (0, 0, 3),
+"blender": (2, 78, 0),
 "location": "View3D > Add > Curve",
 "description": ("Quick and randomized use of Sapling_3. See "
     "https://github.com/abpy/improved-sapling-tree-generator"),
@@ -20,7 +20,7 @@ from os.path import dirname, join, split
 
 """
 Magic operator context that will always work!
-#[12:59:12] <ideasman42> you can always do bpy.ops.foo(dict(object=my_obj, scene=mys_cene))
+#[12:59:12] <ideasman42> you can always do bpy.ops.foo(dict(object=my_obj, scene=my_scene))
 """
 
 
@@ -43,6 +43,10 @@ class QuickTree(bpy.types.Panel):
         row = layout.row(align=True)
         row.alignment = 'LEFT'
         row.operator("sapling.randomdata", text="Leaves randomization").mode=3
+
+        row = layout.row(align=True)
+        row.alignment = 'LEFT'
+        row.operator("sapling.randomdata", text="Odd branch").mode=4
 
         row = layout.row(align=True)
         row.alignment = 'LEFT'
@@ -71,17 +75,16 @@ class RandomData(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        #return context.active_operator.__module__ == "add_curve_sapling_3"
-        return context.active_operator.__class__.__name__ == "AddTree"
+        ####return context.active_operator.__module__ == "add_curve_sapling_3"
+        #return context.active_operator.__class__.__name__ == "AddTree"
+        return True
 
     def execute(self, context):
         # via context.window_manager.operators you can get there, too
         sapling3 = context.active_operator
         #sap_props = sapling3.as_keywords()
         #self.report({'INFO'}, str(sap_props.keys()))
-        sapling3_props = sapling3.rna_type.properties
-        
-        #self.last_props = copy.copy(sapling3.properties)
+        #sapling3_props = sapling3.rna_type.properties
         """
         #two ways
         sapling3.bevel = True
@@ -114,7 +117,10 @@ class RandomData(bpy.types.Operator):
             #print(l)
             for k, v in merge_dicts(*common+[l]).items():
                 setattr(sapling3, k, v)
-
+        elif self.mode == 4:
+            q = quirk_rules(rand_dict(quirk_randomize))
+            for k, v in merge_dicts(*common+[q]).items():
+                setattr(sapling3, k, v)
         elif self.mode == 10:
             for k, v in export_presets.items():
                 sapling3.properties[k] = v
@@ -146,11 +152,10 @@ class RandomData(bpy.types.Operator):
     def select_tree(self, context):
         for ob in context.scene.objects:
             ob.select = False
-            if (ob.type == "CURVE" or ob.type == "MESH") and ob.name == "tree":
+            if ob.type in ("CURVE", "MESH") and ob.name == "tree":
                 ob.select = True
                 ####bpy.context.scene.objects.active = ob
                 context.scene.objects.active = ob
-                ####ob.data.use_uv_as_generated = True
                 tree = ob
         return tree
 
@@ -169,25 +174,51 @@ class RandomData(bpy.types.Operator):
         return leaves
 
     def export(self, context):
-        """ select treeArm -> tree (the curve) and in object mode using 
+        """ We will not use the "Make Mesh" option, as we cannot get nice UV
+        coordinates that way.
+        select treeArm -> tree (the curve) and in object mode using 
         the data (curve) tab check 'use UV for mapping' """
+        
         tree = self.select_tree(context)
         tree.data.use_uv_as_generated = True
-
         # #use alt+c to convert to mesh: "Mesh from Curve"
         bpy.ops.object.convert(dict(object=tree, scene=context.scene), target='MESH')
-
-        #bpy.ops.object.convert({'selected_objects': context['selected_objects']}, target='MESH')
-        
-        #edit UVs
-        #bpy.ops.object.editmode_toggle()
-        #bpy.ops.object.mode_set(mode='EDIT')
-
         #with object mode selected newly created tree mesh
         #edit mode
         #select all
-        #select all uvs
-
+        #select all uvs 
+        """
+        obsolete try using Make Mesh:
+        try:
+            bpy.ops.object.modifier_apply(modifier = "Skin")
+        except:
+            print('WARNING: can\'t apply Skin modifier.')
+        
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        #original_area = bpy.context.area.type
+        #bpy.context.area.type = 'IMAGE_EDITOR'
+        bpy.context.scene.tool_settings.uv_select_mode = 'ISLAND'
+        for window in bpy.context.window_manager.windows:
+            screen = window.screen
+            for area in screen.areas:
+                if area.type == "IMAGE EDITOR":
+                    override = dict(window=window, screen=screen, area=area)
+                    bpy.ops.uv.select_all(override, action='SELECT')
+                    #rotate 90
+                    bpy.ops.transform.rotate(value=1.5708, axis=(-0, -0, -1))
+                    #scale y up massively.
+                    bpy.ops.transform.resize(value=(8.57624, 8.57624, 8.57624), 
+                                             constraint_axis=(False, True, False))
+                    #scale x down even more.
+                    bpy.ops.transform.resize(value=(0.792738, 0.792738, 0.792738), 
+                                             constraint_axis=(True, False, False))
+                    #scale up uniformly.
+                    bpy.ops.transform.resize(value=(2.15924, 2.15924, 2.15924), 
+                                             constraint_axis=(False, False, False))
+                    break
+        """
+                    
         tree = self.select_tree(context)
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
@@ -207,7 +238,7 @@ class RandomData(bpy.types.Operator):
         #scale up uniformly.
         bpy.ops.transform.resize(value=(2.15924, 2.15924, 2.15924), 
                                  constraint_axis=(False, False, False))
-
+        
         #load textures
         # print(context.window_manager.bark_base_tex, 
         #       context.window_manager.bark_normal_tex, 
@@ -238,7 +269,6 @@ class RandomData(bpy.types.Operator):
         bark.pbepbs.ior = 1.5
         bark.pbepbs.roughness = 0.85
         bark.pbepbs.normal_strength = 0.8
-        # bark.pbepbs.normal_strength = 1.0
 
         for tex in (bark_base_tex, bark_normal_tex):
             slot = bark.texture_slots.add()
@@ -255,6 +285,11 @@ class RandomData(bpy.types.Operator):
             context.window_manager.leaf_base_tex)
 
         leaf = bpy.data.materials.new('Leaf')
+        """
+        this makes all leaves two-sided. no need to call set_two_sided in Panda,
+        which would also make the tree two-sided.
+        """
+        leaf.game_settings.use_backface_culling = False
         leaf.pbepbs.shading_model = 'FOLIAGE'
         leaf.pbepbs.emissive_factor = 0.
         leaf.pbepbs.ior = 1.5
@@ -295,9 +330,6 @@ class RandomData(bpy.types.Operator):
             for lidx in p.loop_indices:
                 C.object.data.vertices[C.object.data.loops[lidx].vertex_index].normal = C.object.data.loops[lidx].normal
         """
-        # bpy.ops.object.mode_set(mode='OBJECT')
-        # context.scene.objects.active = leaves
-        # leaves.select = True
         #maybe remove windSway modifier
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         leaves.data.create_normals_split()
@@ -311,17 +343,44 @@ class RandomData(bpy.types.Operator):
         leaves.data.calc_normals_split()  # now leaves.data.has_custom_normals is True
         #print("Leaves custom split normals data: ", leaves.data.has_custom_normals)
 
+        """
+        to export everything in a way that's fit for panda, an armature 
+        shouldn't be the parent of a mesh. At this point "treeArm" is the parent
+        of "tree", which in turn is the parent of "leaves".
+        So let's select "tree" and
+        bpy.ops.object.parent_clear(type='CLEAR')
+        """
+        #EXPERIMENTAL
+        leaves = self.select_leaves(context)
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        
+        tree = self.select_tree(context)
+        #bpy.ops.object.parent_clear(type="CLEAR")
+        #EXPERIMENTAL
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        # now, all meshes that are to be moved will need an armature modifier
+        # on "leaves" it is intact. we create the same one for "tree".
+        bpy.ops.object.modifier_add(type='ARMATURE')
+        bpy.context.object.modifiers["Armature"].name = "windSway"
+        bpy.context.object.modifiers["windSway"].object = bpy.data.objects["treeArm"]
+        bpy.context.object.modifiers["windSway"].use_vertex_groups = True
+        bpy.context.object.modifiers["windSway"].use_bone_envelopes = True  # yeah, maybe.
+
         #select stuff for export: leaves, tree and treeArm
         for ob in context.scene.objects:
-            ob.select = ((ob.type == "MESH" or ob.type == "ARMATURE") and 
+            ob.select = (ob.type in ("MESH", "ARMATURE") and 
                          ob.name.startswith(("tree", "leaves")))
+            if ob.select:
+                print("Selected:", ob, ob.yabee_name)
+            else:
+                print("Not selected:", ob)
 
         context.scene.yabee_settings.opt_tbs_proc = 'NO'
         context.scene.yabee_settings.opt_anims_from_actions = True
-        context.scene.yabee_settings.opt_separate_anim_files = False
+        context.scene.yabee_settings.opt_separate_anim_files = True  # False
         context.scene.yabee_settings.opt_copy_tex_files = True
-        context.scene.yabee_settings.opt_merge_actor = True
-        context.scene.yabee_settings.opt_apply_modifiers = False  # True
+        context.scene.yabee_settings.opt_merge_actor = False  # True
+        context.scene.yabee_settings.opt_apply_modifiers = True  # False
         context.scene.yabee_settings.opt_use_loop_normals = True
         context.scene.yabee_settings.opt_export_pbs = True
 
@@ -332,8 +391,16 @@ class RandomData(bpy.types.Operator):
         #will save to parent directory of directory the bark texture is in
         bpy.ops.export.panda3d_egg(filepath=join(
             dirname(dirname(context.window_manager.bark_base_tex)), 
-            "freshtree.egg"))
-
+            "freshtree1.egg"))
+        #TODO maybe transfer vertex groups from tree curve to tree mesh somehow.
+        
+        #TODO get a frame range on the action windAction. It seems the f-curves have to be unlocked/unsampled to be able to place keyframes.
+        # like this:
+        #bpy.ops.nla.bake(frame_start=1, frame_end=60, only_selected=False, bake_types={'POSE', 'OBJECT'})  #maybe only POSE
+        #then add keyframes in dopesheet according to loop length
+        #Make sure in the Dope Sheet (Action Editor Mode) the current action is unlinked and all
+        #actions have a fake user. Otherwise yabee will export the current animation twice with a .
+        #001.egg extension
 
 def register():
     bpy.utils.register_module(__name__)
