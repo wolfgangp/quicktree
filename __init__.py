@@ -16,13 +16,14 @@ else:
     from quicktree.utils import *
 
 import bpy
+from mathutils import Vector
+from math import pi
 from os.path import dirname, join, split
 
 """
-Magic operator context that will always work!
-#[12:59:12] <ideasman42> you can always do bpy.ops.foo(dict(object=my_obj, scene=my_scene))
+Operator context that will work most of the time.
+<ideasman42> you can always do bpy.ops.foo(dict(object=my_obj, scene=my_scene))
 """
-
 
 class QuickTree(bpy.types.Panel):
     bl_label = "Quick Tree"
@@ -33,120 +34,116 @@ class QuickTree(bpy.types.Panel):
         layout = self.layout
 
         row = layout.row(align=True)
-        row.alignment = 'LEFT'
-        row.operator("sapling.randomdata", text="Very coarse randomization").mode=1
+        row.operator("sapling.randomdata",
+                     text="Very coarse randomization").mode=1
+        
+        #row = layout.row(align=True)
+        row.operator("sapling.randomdata",
+                     text="Coarse randomization").mode=2
         
         row = layout.row(align=True)
-        row.alignment = 'LEFT'
-        row.operator("sapling.randomdata", text="Coarse randomization").mode=2
-        
-        row = layout.row(align=True)
-        row.alignment = 'LEFT'
-        row.operator("sapling.randomdata", text="Leaves randomization").mode=3
+        row.operator("sapling.randomdata",
+                     text="Leaves randomization").mode=3
 
         row = layout.row(align=True)
-        row.alignment = 'LEFT'
-        row.operator("sapling.randomdata", text="Odd branch").mode=4
+        row.operator("sapling.randomdata",
+                     text="Odd branch").mode=4
 
         row = layout.row(align=True)
-        row.alignment = 'LEFT'
-        row.operator("sapling.randomdata", text="View for export").mode=10
+        row.operator("sapling.randomdata", text="View for export",
+                     icon="COLOR_GREEN").mode=10
 
         row = layout.box()
         row.prop(context.window_manager, 'bark_base_tex')
         row.prop(context.window_manager, 'bark_normal_tex')
         row.prop(context.window_manager, 'leaf_base_tex')
 
-        # row = layout.row(align=True)
-        # row.alignment = 'LEFT'
-        row.operator("sapling.randomdata", text="Export").mode=20
+        row = layout.row(align=True)
+        row.prop(context.window_manager, 'egg_fn')
+        
+        row = layout.row(align=True)
+        row.operator("sapling.randomdata", text="Export",
+                     icon="EXPORT").mode=20
 
 class RandomData(bpy.types.Operator):
-    #"""This ties into sapling and randomizes"""
+    """ This ties into sapling and randomizes. """
     bl_idname = 'sapling.randomdata'
     bl_label = 'Randomize sapling parameters'
     #bl_options = {'REGISTER'}  # it's the default anyway
 
     mode = bpy.props.IntProperty()
-    # view_export = bpy.props.BoolProperty(name='View for export', description=
-    #     'Show leaves and armature', default=False)
-    bark_normal_tex = bpy.props.StringProperty(name="Bark Normal Texture",
-        subtype="FILE_PATH")
 
     @classmethod
     def poll(cls, context):
-        ####return context.active_operator.__module__ == "add_curve_sapling_3"
-        #return context.active_operator.__class__.__name__ == "AddTree"
-        return True
+        if not context.active_operator:
+            return False
+        else:
+            #return context.active_operator.__class__.__name__ == "AddTree"
+            return context.active_operator.__module__ == "add_curve_sapling"
 
     def execute(self, context):
-        # via context.window_manager.operators you can get there, too
-        sapling3 = context.active_operator
-        #sap_props = sapling3.as_keywords()
-        #self.report({'INFO'}, str(sap_props.keys()))
-        #sapling3_props = sapling3.rna_type.properties
+        sapling = context.active_operator
         """
-        #two ways
-        sapling3.bevel = True
-        sapling3.properties["scale"] = 50.
-        #float vector property
-        # print(sapling3.properties["taper"][:])
-        # also: len(sapling3.properties["taper"])  # 4
-        #one
-        sapling3.properties["taper"][1] = .2
-        #all
-        sapling3.properties["taper"] = (.1,.2,.3,.4)
-        #it's no error to pass a wrong size tuple, but resets it to default
+        sap_props = sapling.as_keywords()
+        self.report({'INFO'}, str(sap_props.keys()))
+        sapling_props = sapling.rna_type.properties
+
+        it's no error to pass a wrong size tuple when setting a sapling
+        property, but resets it to default.
+        sapling.properties["taper"] = (.1,.2,.3,.4)
         """
 
         common = [viewing_presets, preferences, lowpoly_presets, wind]
-        #print(common)
+
         if self.mode == 0:
             pass
         elif self.mode == 1:
             vc = very_coarse_rules(rand_dict(very_coarse_randomize))
             for k, v in merge_dicts(*common+[vc]).items():
-                setattr(sapling3, k, v)
+                setattr(sapling, k, v)
         elif self.mode == 2:
             c = coarse_rules(rand_dict(coarse_randomize))
             for k, v in merge_dicts(*common+[c]).items():
-                setattr(sapling3, k, v)
+                setattr(sapling, k, v)
         elif self.mode == 3:
-            #leaves = {k: randomize(v) for k, v in leaves.items()}
-            l = rand_dict(leaves)
+            #l = rand_dict(leaves)
             #print(l)
-            for k, v in merge_dicts(*common+[l]).items():
-                setattr(sapling3, k, v)
+            #for k, v in merge_dicts(*common+[l]).items():
+            for k, v in merge_dicts(*common+[rand_dict(leaves)]).items():
+                setattr(sapling, k, v)
         elif self.mode == 4:
             q = quirk_rules(rand_dict(quirk_randomize))
             for k, v in merge_dicts(*common+[q]).items():
-                setattr(sapling3, k, v)
+                setattr(sapling, k, v)
         elif self.mode == 10:
             for k, v in export_presets.items():
-                sapling3.properties[k] = v
+                setattr(sapling, k, v)
+                #sapling.properties[k] = v
 
         elif self.mode == 20:
             self.export(context)
             return {'FINISHED'}
-        # else:
-        #     for k, v in export_presets.items():
-        #         sapling3.properties[k] = not v
 
-        # props = context.window_manager.quicktree_props
-        # if props.view_export:
-        #     print("should be viewing for export in execute")
-
-        #remove previous curve and armature
+        # remove previous curve and armature
         for ob in context.scene.objects:
-            ob.select = (((ob.type == "CURVE" or ob.type == "ARMATURE") and 
-                           ob.name.startswith("tree")) or (ob.type == "MESH" and
-                           ob.name.startswith("leaves")))
-
+            ob.select = ((ob.type in ("CURVE", "ARMATURE") and 
+                          ob.name.startswith("tree")) or (ob.type == "MESH" and
+                          ob.name.startswith("leaves")))
         bpy.ops.object.delete()
-        #context.active_operator.execute(context)
-        sapling3.execute(context)
-        #maybe
-        #context.scene.update()
+        
+        # change render engine to Panda3D PBS (Physically based shading)
+        context.scene.render.engine = 'P3DPBS'
+        # set timeline to animation loop length
+        context.scene.frame_start = 0
+        context.scene.frame_end = export_presets["loopFrames"]
+        # position camera so a quick render with F12 will have our tree in view
+        pos = Vector((9, -9, 7.5))
+        rot = Vector((90, 0, 45))
+        context.scene.camera.rotation_mode = 'XYZ'
+        context.scene.camera.rotation_euler = rot / 180 * pi
+        context.scene.camera.location = pos
+        
+        sapling.execute(context)
         return {'FINISHED'}
 
     def select_tree(self, context):
@@ -154,7 +151,6 @@ class RandomData(bpy.types.Operator):
             ob.select = False
             if ob.type in ("CURVE", "MESH") and ob.name == "tree":
                 ob.select = True
-                ####bpy.context.scene.objects.active = ob
                 context.scene.objects.active = ob
                 tree = ob
         return tree
@@ -174,19 +170,19 @@ class RandomData(bpy.types.Operator):
         return leaves
 
     def export(self, context):
-        """ We will not use the "Make Mesh" option, as we cannot get nice UV
-        coordinates that way.
-        select treeArm -> tree (the curve) and in object mode using 
-        the data (curve) tab check 'use UV for mapping' """
+        """ We will not use Sapling's "Make Mesh" option, as we cannot get nice
+        UV coordinates that way. """
         
+        sapling = context.active_operator
+        
+        """ select treeArm -> tree (the curve) and in object mode using 
+        the data (curve) tab check 'use UV for mapping' """
         tree = self.select_tree(context)
         tree.data.use_uv_as_generated = True
-        # #use alt+c to convert to mesh: "Mesh from Curve"
-        bpy.ops.object.convert(dict(object=tree, scene=context.scene), target='MESH')
-        #with object mode selected newly created tree mesh
-        #edit mode
-        #select all
-        #select all uvs 
+        # Using an override, convert curve to mesh: "Mesh from Curve" (Alt+C)
+        bpy.ops.object.convert(dict(object=tree, scene=context.scene),
+                               target='MESH')
+        
         """
         obsolete try using Make Mesh:
         try:
@@ -218,7 +214,8 @@ class RandomData(bpy.types.Operator):
                                              constraint_axis=(False, False, False))
                     break
         """
-                    
+        # in object mode select newly created tree mesh
+        # rotate and resize UVs 
         tree = self.select_tree(context)
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
@@ -227,15 +224,15 @@ class RandomData(bpy.types.Operator):
         context.scene.tool_settings.uv_select_mode = 'ISLAND'
         bpy.ops.uv.select_all(dict(object=tree, scene=context.scene), 
                                 action='TOGGLE')
-        #rotate 90
+        # rotate 90
         bpy.ops.transform.rotate(value=1.5708, axis=(-0, -0, -1))
-        #scale y up massively.
+        # scale y up massively.
         bpy.ops.transform.resize(value=(8.57624, 8.57624, 8.57624), 
                                  constraint_axis=(False, True, False))
-        #scale x down even more.
+        # scale x down even more.
         bpy.ops.transform.resize(value=(0.792738, 0.792738, 0.792738), 
                                  constraint_axis=(True, False, False))
-        #scale up uniformly.
+        # scale up uniformly.
         bpy.ops.transform.resize(value=(2.15924, 2.15924, 2.15924), 
                                  constraint_axis=(False, False, False))
         
@@ -254,8 +251,13 @@ class RandomData(bpy.types.Operator):
             context.window_manager.bark_normal_tex = "/home/juzzuj/code/eclipse_workspace/GlideGolf/glidegolf/models/trees/tex/bark1_nmp.tga"
         if not context.window_manager.leaf_base_tex:
             context.window_manager.leaf_base_tex = "/home/juzzuj/code/eclipse_workspace/GlideGolf/glidegolf/models/trees/tex/ferny_spring1.png"
+        if not context.window_manager.egg_fn:
+            #defaults to parent directory of directory the bark texture is in
+            context.window_manager.egg_fn = join(
+            dirname(dirname(context.window_manager.bark_base_tex)), 
+            "freshtree.egg")
 
-        #bark material + textures
+        # bark material + textures
         bark_base_tex = bpy.data.textures.new('bark_base', type='IMAGE')
         bark_base_tex.image = bpy.data.images.load(
             context.window_manager.bark_base_tex)
@@ -292,7 +294,7 @@ class RandomData(bpy.types.Operator):
         leaf.game_settings.use_backface_culling = False
         leaf.pbepbs.shading_model = 'FOLIAGE'
         leaf.pbepbs.emissive_factor = 0.
-        leaf.pbepbs.ior = 1.5
+        leaf.pbepbs.ior = 1.3
         leaf.pbepbs.roughness = 0.55
         leaf.pbepbs.normal_strength = 0.0
 
@@ -330,84 +332,130 @@ class RandomData(bpy.types.Operator):
             for lidx in p.loop_indices:
                 C.object.data.vertices[C.object.data.loops[lidx].vertex_index].normal = C.object.data.loops[lidx].normal
         """
-        #maybe remove windSway modifier
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         leaves.data.create_normals_split()
-        splitnormals_mod = leaves.modifiers.new("Set Split Normals", "NORMAL_EDIT")
-        # using a very rough spherical approximation of veggie shape here.
-        # the center from which vertex normals radiate outward is at X=0 Y=0 Z=half veggie scale.
-        # print("Split mod data:", dir(splitnormals_mod), splitnormals_mod.offset)
-        splitnormals_mod.offset[2] = preferences["scale"] / 2
-        #print("Leaves custom split normals data: ", leaves.data.has_custom_normals)
-        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Set Split Normals")
+        splitnormals_mod = leaves.modifiers.new("Set Split Normals", 
+                                                "NORMAL_EDIT")
+        """ using a very rough spherical approximation of tree shape here.
+        the center from which vertex normals radiate outward is at
+        X=0 Y=0 Z=tree scale/2.
+        """
+        splitnormals_mod.offset[2] = sapling.scale / 2
+        #print("Leaves custom split normals:", leaves.data.has_custom_normals)
+        bpy.ops.object.modifier_apply(apply_as='DATA', 
+                                      modifier="Set Split Normals")
         leaves.data.calc_normals_split()  # now leaves.data.has_custom_normals is True
-        #print("Leaves custom split normals data: ", leaves.data.has_custom_normals)
 
         """
-        to export everything in a way that's fit for panda, an armature 
-        shouldn't be the parent of a mesh. At this point "treeArm" is the parent
-        of "tree", which in turn is the parent of "leaves".
-        So let's select "tree" and
-        bpy.ops.object.parent_clear(type='CLEAR')
+        At this point "treeArm" is the parent of "tree", which in turn is the 
+        parent of "leaves".
         """
-        #EXPERIMENTAL
-        leaves = self.select_leaves(context)
-        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        #self.select_leaves(context)
+        #bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
         
+        # as an approximation of branch (and stem) radii we use the largest, which should be the stem start radius
+        # this is mostly from sapling/utils.py#933
+        max_stem_radius = (sapling.scale + sapling.scaleV) * sapling.ratio * sapling.scale0 * (1+sapling.scaleV0)
+        for bone in context.scene.objects["treeArm"].data.bones:
+            #bone.envelope_distance = max_stem_radius / 3.
+            pass
+            
+        """ To make YABEE export the animation correctly we need vertex groups 
+        also for the tree mesh. The armature envelope parent option will keep
+        the current parent (=treeArm) / child (=tree) relationship and create
+        vertex groups.
+        """
         tree = self.select_tree(context)
-        #bpy.ops.object.parent_clear(type="CLEAR")
-        #EXPERIMENTAL
-        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-        # now, all meshes that are to be moved will need an armature modifier
+        treeArm = context.blend_data.objects["treeArm"]
+        treeArm.select = True
+        context.scene.objects.active = treeArm
+        #bpy.ops.object.parent_set(type='ARMATURE_ENVELOPE')
+        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+        
+        """
+        # if you choose to unparent tree and leaves from treeArm, follow this.
+        # now, all meshes that are to be animated will need an armature modifier
         # on "leaves" it is intact. we create the same one for "tree".
+        tree = self.select_tree(context)
         bpy.ops.object.modifier_add(type='ARMATURE')
         bpy.context.object.modifiers["Armature"].name = "windSway"
         bpy.context.object.modifiers["windSway"].object = bpy.data.objects["treeArm"]
         bpy.context.object.modifiers["windSway"].use_vertex_groups = True
-        bpy.context.object.modifiers["windSway"].use_bone_envelopes = True  # yeah, maybe.
+        bpy.context.object.modifiers["windSway"].use_bone_envelopes = False  # True  # yeah, maybe.
+        """
+        
+        """ bake the animation/action. it needs a frame_range to be exported
+        successfully. as is, no keyframes can be set on it (its f-curves have 
+        modifiers) and hence it has no frame_range. 
+        This will create a new action called 'Action'. """
+        bpy.ops.nla.bake(frame_start=0,
+                         frame_end=sapling.loopFrames,
+                         only_selected=False, bake_types={'POSE'})
+        print("Actions present after baking:", [action for action in bpy.data.actions])
+        print("Seed:", sapling.seed)
+        
+        # remove the original action Sapling created, as it's of no use.
+        bpy.data.actions.remove(bpy.data.actions["windAction"], do_unlink=True)
+        
+        bpy.data.actions["Action"].name = "windAction"
+        """ we need to do this because otherwise YABEE will export actions 
+        twice (once with a .001 postfix). """
+        bpy.data.actions["windAction"].use_fake_user = True
+        context.area.type = 'DOPESHEET_EDITOR'
+        context.space_data.mode = 'ACTION'
+        bpy.ops.action.unlink()
+        context.area.type = 'VIEW_3D'
 
         #select stuff for export: leaves, tree and treeArm
         for ob in context.scene.objects:
             ob.select = (ob.type in ("MESH", "ARMATURE") and 
                          ob.name.startswith(("tree", "leaves")))
-            if ob.select:
-                print("Selected:", ob, ob.yabee_name)
-            else:
-                print("Not selected:", ob)
 
         context.scene.yabee_settings.opt_tbs_proc = 'NO'
         context.scene.yabee_settings.opt_anims_from_actions = True
         context.scene.yabee_settings.opt_separate_anim_files = True  # False
         context.scene.yabee_settings.opt_copy_tex_files = True
-        context.scene.yabee_settings.opt_merge_actor = False  # True
-        context.scene.yabee_settings.opt_apply_modifiers = True  # False
+        context.scene.yabee_settings.opt_merge_actor = False
+        context.scene.yabee_settings.opt_apply_modifiers = True
         context.scene.yabee_settings.opt_use_loop_normals = True
         context.scene.yabee_settings.opt_export_pbs = True
 
-        #this is important or else all settings above will be overwritten by default YABEE settings.
+        """this is important or else all settings above will be overwritten by 
+        the default YABEE settings. """
         context.scene.yabee_settings.first_run = False
 
-        #bpy.ops.export.panda3d_egg(filepath=export_fn_egg)
         #will save to parent directory of directory the bark texture is in
-        bpy.ops.export.panda3d_egg(filepath=join(
-            dirname(dirname(context.window_manager.bark_base_tex)), 
-            "freshtree1.egg"))
-        #TODO maybe transfer vertex groups from tree curve to tree mesh somehow.
+        #bpy.ops.export.panda3d_egg(filepath=join(
+        #    dirname(dirname(context.window_manager.bark_base_tex)), 
+        #    "freshtree.egg"))
+        bpy.ops.export.panda3d_egg(filepath=context.window_manager.egg_fn)
+            
+        #TODO find a sane solution to the (automatic) vertex group creation
+        # problem of the tree mesh. stick with ARMATURE_AUTO and forget about
+        # the envelopes. Or use ARMATURE_ENVELOPE after finding a sane size for
+        # the envelopes/or even bones sizes.
+
+        #TODO use leaf_DupliObj for non-flat leaves?
         
-        #TODO get a frame range on the action windAction. It seems the f-curves have to be unlocked/unsampled to be able to place keyframes.
-        # like this:
-        #bpy.ops.nla.bake(frame_start=1, frame_end=60, only_selected=False, bake_types={'POSE', 'OBJECT'})  #maybe only POSE
-        #then add keyframes in dopesheet according to loop length
-        #Make sure in the Dope Sheet (Action Editor Mode) the current action is unlinked and all
-        #actions have a fake user. Otherwise yabee will export the current animation twice with a .
-        #001.egg extension
+        #TODO save blend file?
+        #TODO save presets. use sapling for that?
+        
+        #TODO seems after using Quicktree's buttons, switching the tabs in Sapling
+        # may reset the tree. Maybe we need to redraw the toolbar.
+        # CodeManX: 
+        # tag the appropriate context area.
+        # bpy.context.area.tag_redraw() # granted the context area is the one you are working with 
 
 def register():
     bpy.utils.register_module(__name__)
-    bpy.types.WindowManager.bark_base_tex = bpy.props.StringProperty(name="Bark Basecolor Texture", subtype="FILE_PATH")
+    bpy.types.WindowManager.bark_base_tex = bpy.props.StringProperty(
+        name="Bark Basecolor Texture", subtype="FILE_PATH")
     bpy.types.WindowManager.bark_normal_tex = bpy.props.StringProperty(
         name="Bark Normal Texture", subtype="FILE_PATH")
-    bpy.types.WindowManager.leaf_base_tex = bpy.props.StringProperty(name="Leaf Basecolor Texture", subtype="FILE_PATH")
+    bpy.types.WindowManager.leaf_base_tex = bpy.props.StringProperty(
+        name="Leaf Basecolor Texture", subtype="FILE_PATH")
+    bpy.types.WindowManager.egg_fn = bpy.props.StringProperty(
+        name="Egg File", subtype="FILE_PATH")
 
 def unregister():
     bpy.utils.unregister_module(__name__)
