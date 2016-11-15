@@ -43,12 +43,12 @@ the following are all Blender add-ons and can be installed just like quicktree.
 5. Select **texture files** for *Bark Basecolor*, *Bark Normal* and *Leaf Basecolor*.
 
 	Bark Basecolor texture example
-	![Bark Basecolor example](http://imgur.com/fbrqdET)
+	![Imgur](http://i.imgur.com/fbrqdET.jpg)
 	
 	Bark Normal texture example
-	![Bark Normal example](http://imgur.com/ZVAOUSU)
+	![Imgur](http://i.imgur.com/ZVAOUSU.jpg)
 
 	Leaf Basecolor texture example: it's important the stem of the leaf is in the bottom middle
-	![Leaf Basecolor example](http://imgur.com/cYMdcNC) 
+	![Imgur](http://i.imgur.com/cYMdcNC.png)
 
 6. Export after selecting **EGG file**. Afterwards you may press `F12` to get a preview render.
