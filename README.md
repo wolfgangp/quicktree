@@ -10,7 +10,7 @@ a Blender plug-in to quickly create random trees, without sacrificing optional f
 
 the following are all Blender add-ons and can be installed just like quicktree.
 
-- YABEE****
+- YABEE
 
 	`git clone https://github.com/09th/YABEE.git`
 
@@ -18,9 +18,10 @@ the following are all Blender add-ons and can be installed just like quicktree.
 
 	`git clone --recursive https://github.com/tobspr/Panda3D-Bam-Exporter.git`
 
-#####Optional
+	####Optional
 
 - [RenderPipeline](https://github.com/tobspr/RenderPipeline/wiki/Getting%20Started) by tobspr
+
 	after installation you can run `RP_main_dir/toolkit/render_service/service.py` 
 
 - Sapling 3 (included in Blender 2.78+)
@@ -35,8 +36,7 @@ the following are all Blender add-ons and can be installed just like quicktree.
 2. Create a **Sapling Tree**
 	Press `Shift+A`, select *Curve* -> *Sapling Tree Gen*
 
-3. Enter the **QuickTree** menu
-	While in *Object Mode* press `T` to show the Toolbox. Click on the bottom-most tab called *Misc*.
+3. Enter the **QuickTree** menu while in *Object Mode* press `T` to show the Toolbox. Click on the bottom-most tab called *Misc*.
 	
 4. Click any of the **randomization** buttons to randomize values in the *Sapling: Add Tree* menu you should see below. Click *View for export* to view the leaves and be able to skip through the animation in the *Timeline*. 
 

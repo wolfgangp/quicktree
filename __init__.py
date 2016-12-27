@@ -1,12 +1,14 @@
 bl_info = {
-"name": "Quick Tree",
+"name": "QuickTree",
 "author": "Wolfgang Pratl",
-"version": (0, 0, 3),
+"version": (0, 0, 4),
 "blender": (2, 78, 0),
 "location": "View3D > Add > Curve",
-"description": ("Quick and randomized use of Sapling_3. See "
-    "https://github.com/abpy/improved-sapling-tree-generator"),
+"description": ("Quick and randomized use of 'Sapling Tree Gen'. Export for Panda3D with RenderPipeline."),
 "category": "Add Curve"}
+
+#Sapling 3 (needed in Blender 2.77 and less)
+#https://github.com/abpy/improved-sapling-tree-generator
 
 if "bpy" in locals():
     import importlib
@@ -16,9 +18,10 @@ else:
     from quicktree.utils import *
 
 import bpy
+# import bmesh  # DUPLI LEAVES
 from mathutils import Vector
 from math import pi
-from os.path import dirname, join, split
+from os.path import dirname, join, split, splitext, basename
 
 """
 Operator context that will work most of the time.
@@ -64,6 +67,7 @@ class QuickTree(bpy.types.Panel):
         row = layout.row(align=True)
         row.operator("sapling.randomdata", text="Export",
                      icon="EXPORT").mode=20
+                     
 
 class RandomData(bpy.types.Operator):
     """ This ties into sapling and randomizes. """
@@ -111,6 +115,20 @@ class RandomData(bpy.types.Operator):
             #for k, v in merge_dicts(*common+[l]).items():
             for k, v in merge_dicts(*common+[rand_dict(leaves)]).items():
                 setattr(sapling, k, v)
+
+            """
+            # DUPLI LEAVES
+            # remove old leaf object
+            for ob in context.scene.objects:
+                if "leaf" in ob.name:
+                    ob.select = True
+                    bpy.data.objects.remove(ob, do_unlink=True)
+                    bpy.ops.object.delete()
+            # recreate the bipart leaf to take into account the new leaf size
+            sapling.leafDupliObj = create_bipart_leaf(context)
+            sapling.leafShape = "dFace"  # "dVert"            
+            """
+
         elif self.mode == 4:
             q = quirk_rules(rand_dict(quirk_randomize))
             for k, v in merge_dicts(*common+[q]).items():
@@ -131,8 +149,11 @@ class RandomData(bpy.types.Operator):
                           ob.name.startswith("leaves")))
         bpy.ops.object.delete()
         
-        # change render engine to Panda3D PBS (Physically based shading)
-        context.scene.render.engine = 'P3DPBS'
+        # uncomment this for quick preview renders by RenderPipeline after
+        # exporting. Run RP_MAIN_DIR/toolkit/render_service/service.py and 
+        # press F12 in Blender.
+        #context.scene.render.engine = 'P3DPBS'
+
         # set timeline to animation loop length
         context.scene.frame_start = 0
         context.scene.frame_end = export_presets["loopFrames"]
@@ -142,7 +163,7 @@ class RandomData(bpy.types.Operator):
         context.scene.camera.rotation_mode = 'XYZ'
         context.scene.camera.rotation_euler = rot / 180 * pi
         context.scene.camera.location = pos
-        
+
         sapling.execute(context)
         return {'FINISHED'}
 
@@ -157,84 +178,32 @@ class RandomData(bpy.types.Operator):
 
     def select_leaves(self, context):
         for ob in context.scene.objects:
+            #print("select_leaves fail obj: ", ob)
             ob.select = False
-            # context.scene.objects.active = ob
             bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
             if ob.type == "MESH" and ob.name == "leaves":
                 leaves = ob
                 leaves.select = True
                 context.scene.objects.active = leaves
-                # context.scene.objects.active = ob
-                #ob.data.use_uv_as_generated = True
-
+        return leaves
+        
+    def select_scattered_leaves(self, context):
+        "DUPLI LEAVES"
+        for ob in context.scene.objects:
+            bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+            ob.select = False
+            if ob.type == "MESH" and "leaf" in ob.name:
+                leaves = ob
+                leaves.select = True
+                context.scene.objects.active = leaves
+                #print(ob.name, type(ob))
         return leaves
 
     def export(self, context):
-        """ We will not use Sapling's "Make Mesh" option, as we cannot get nice
+        """ We will not use Sapling's 'Make Mesh' option, as we cannot get nice
         UV coordinates that way. """
         
         sapling = context.active_operator
-        
-        """ select treeArm -> tree (the curve) and in object mode using 
-        the data (curve) tab check 'use UV for mapping' """
-        tree = self.select_tree(context)
-        tree.data.use_uv_as_generated = True
-        # Using an override, convert curve to mesh: "Mesh from Curve" (Alt+C)
-        bpy.ops.object.convert(dict(object=tree, scene=context.scene),
-                               target='MESH')
-        
-        """
-        obsolete try using Make Mesh:
-        try:
-            bpy.ops.object.modifier_apply(modifier = "Skin")
-        except:
-            print('WARNING: can\'t apply Skin modifier.')
-        
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        #original_area = bpy.context.area.type
-        #bpy.context.area.type = 'IMAGE_EDITOR'
-        bpy.context.scene.tool_settings.uv_select_mode = 'ISLAND'
-        for window in bpy.context.window_manager.windows:
-            screen = window.screen
-            for area in screen.areas:
-                if area.type == "IMAGE EDITOR":
-                    override = dict(window=window, screen=screen, area=area)
-                    bpy.ops.uv.select_all(override, action='SELECT')
-                    #rotate 90
-                    bpy.ops.transform.rotate(value=1.5708, axis=(-0, -0, -1))
-                    #scale y up massively.
-                    bpy.ops.transform.resize(value=(8.57624, 8.57624, 8.57624), 
-                                             constraint_axis=(False, True, False))
-                    #scale x down even more.
-                    bpy.ops.transform.resize(value=(0.792738, 0.792738, 0.792738), 
-                                             constraint_axis=(True, False, False))
-                    #scale up uniformly.
-                    bpy.ops.transform.resize(value=(2.15924, 2.15924, 2.15924), 
-                                             constraint_axis=(False, False, False))
-                    break
-        """
-        # in object mode select newly created tree mesh
-        # rotate and resize UVs 
-        tree = self.select_tree(context)
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-
-        bpy.context.area.type = 'IMAGE_EDITOR'
-        context.scene.tool_settings.uv_select_mode = 'ISLAND'
-        bpy.ops.uv.select_all(dict(object=tree, scene=context.scene), 
-                                action='TOGGLE')
-        # rotate 90
-        bpy.ops.transform.rotate(value=1.5708, axis=(-0, -0, -1))
-        # scale y up massively.
-        bpy.ops.transform.resize(value=(8.57624, 8.57624, 8.57624), 
-                                 constraint_axis=(False, True, False))
-        # scale x down even more.
-        bpy.ops.transform.resize(value=(0.792738, 0.792738, 0.792738), 
-                                 constraint_axis=(True, False, False))
-        # scale up uniformly.
-        bpy.ops.transform.resize(value=(2.15924, 2.15924, 2.15924), 
-                                 constraint_axis=(False, False, False))
         
         #load textures
         # print(context.window_manager.bark_base_tex, 
@@ -254,8 +223,69 @@ class RandomData(bpy.types.Operator):
         if not context.window_manager.egg_fn:
             #defaults to parent directory of directory the bark texture is in
             context.window_manager.egg_fn = join(
-            dirname(dirname(context.window_manager.bark_base_tex)), 
-            "freshtree.egg")
+                dirname(dirname(context.window_manager.bark_base_tex)), 
+                "freshtree.egg")
+
+        """ select treeArm -> tree (the curve) and in object mode using
+        the data (curve) tab check 'use UV for mapping' """
+        tree = self.select_tree(context)
+        tree.data.use_uv_as_generated = True
+        # Using an override, convert curve to mesh: "Mesh from Curve" (Alt+C)
+        bpy.ops.object.convert(dict(object=tree, scene=context.scene),
+                               target='MESH')
+
+        """
+        obsolete try using Make Mesh:
+        try:
+            bpy.ops.object.modifier_apply(modifier = "Skin")
+        except:
+            print('WARNING: can\'t apply Skin modifier.')
+
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        #original_area = bpy.context.area.type
+        #bpy.context.area.type = 'IMAGE_EDITOR'
+        bpy.context.scene.tool_settings.uv_select_mode = 'ISLAND'
+        for window in bpy.context.window_manager.windows:
+            screen = window.screen
+            for area in screen.areas:
+                if area.type == "IMAGE EDITOR":
+                    override = dict(window=window, screen=screen, area=area)
+                    bpy.ops.uv.select_all(override, action='SELECT')
+                    #rotate 90
+                    bpy.ops.transform.rotate(value=1.5708, axis=(-0, -0, -1))
+                    #scale y up massively.
+                    bpy.ops.transform.resize(value=(8.57624, 8.57624, 8.57624),
+                                             constraint_axis=(False, True, False))
+                    #scale x down even more.
+                    bpy.ops.transform.resize(value=(0.792738, 0.792738, 0.792738),
+                                             constraint_axis=(True, False, False))
+                    #scale up uniformly.
+                    bpy.ops.transform.resize(value=(2.15924, 2.15924, 2.15924),
+                                             constraint_axis=(False, False, False))
+                    break
+        """
+        # in object mode select newly created tree mesh
+        # rotate and resize UVs 
+        tree = self.select_tree(context)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+
+        bpy.context.area.type = 'IMAGE_EDITOR'
+        context.scene.tool_settings.uv_select_mode = 'ISLAND'
+        bpy.ops.uv.select_all(dict(object=tree, scene=context.scene), 
+                                action='TOGGLE')
+        # rotate 90
+        bpy.ops.transform.rotate(value=1.5708, axis=(0, 0, -1))
+        # scale y up massively.
+        bpy.ops.transform.resize(value=(8.57624, 8.57624, 8.57624), 
+                                 constraint_axis=(False, True, False))
+        # scale x down even more.
+        bpy.ops.transform.resize(value=(0.792738, 0.792738, 0.792738), 
+                                 constraint_axis=(True, False, False))
+        # scale up uniformly.
+        bpy.ops.transform.resize(value=(2.15924, 2.15924, 2.15924), 
+                                 constraint_axis=(False, False, False))
 
         # bark material + textures
         bark_base_tex = bpy.data.textures.new('bark_base', type='IMAGE')
@@ -280,6 +310,39 @@ class RandomData(bpy.types.Operator):
             slot.uv_layer = 'Orco'
 
         context.object.data.materials.append(bark)
+        """
+        # DUPLI LEAVES
+        # we still have DupliFaces and YABEE can't export them.
+        # select one of the duplicates
+        self.select_leaves(context)
+        bpy.ops.object.duplicates_make_real()
+        # select all now-real duplicates and join them
+        self.select_scattered_leaves(context)
+        bpy.ops.object.join()
+        # parent joint scattered leaves to leaves.
+        custom_leaves = [ob for ob in context.scene.objects
+                         if ob.type == "MESH" and "leaf" in ob.name][0]
+        custom_leaves.parent = context.scene.objects["tree"]  # self.select_leaves(context)
+        # get vertex groups and modifier from (or just like in) leaves over to bipart_leaf
+        
+        #custom_leaves.data.materials.append(
+        #                context.scene.objects["leaves"].data.materials[0])
+        mod = custom_leaves.modifiers.new("windSway", "ARMATURE")
+        mod.object = context.scene.objects["treeArm"]
+        
+        mod = custom_leaves.modifiers.new("vertex_grps", "DATA_TRANSFER")
+        mod.object = context.scene.objects["leaves"]
+        mod.use_vert_data = True
+        mod.data_types_verts = {"VGROUP_WEIGHTS"}
+        mod.layers_vgroup_select_src = "ALL"
+        bpy.ops.object.datalayout_transfer(modifier="vertex_grps")
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="vertex_grps")
+        # remove leaves object
+        context.scene.objects["leaves"].select = True
+        bpy.data.objects.remove(context.scene.objects["leaves"], do_unlink=True)
+        #bpy.ops.object.delete()
+        custom_leaves.name = "leaves"
+        """
 
         #leaf material + texture
         leaf_base_tex = bpy.data.textures.new('leaf_base', type='IMAGE')
@@ -287,10 +350,8 @@ class RandomData(bpy.types.Operator):
             context.window_manager.leaf_base_tex)
 
         leaf = bpy.data.materials.new('Leaf')
-        """
-        this makes all leaves two-sided. no need to call set_two_sided in Panda,
-        which would also make the tree two-sided.
-        """
+        """ this makes all leaves two-sided. no need to call set_two_sided in
+        Panda, which would also make the tree two-sided. """
         leaf.game_settings.use_backface_culling = False
         leaf.pbepbs.shading_model = 'FOLIAGE'
         leaf.pbepbs.emissive_factor = 0.
@@ -302,9 +363,11 @@ class RandomData(bpy.types.Operator):
         slot.texture = leaf_base_tex
         slot.texture_coords = 'UV'
         slot.mapping = 'FLAT'
-        slot.uv_layer = 'leafUV'
+        slot.uv_layer = 'leafUV'  # in case of leafShape rect
+        # slot.uv_layer = 'UVMap'  # DUPLI LEAVES
 
         leaves = self.select_leaves(context)
+
         context.object.data.materials.append(leaf)
 
         # bpy.ops.object.shade_smooth(dict(object=ob, scene=context.scene))
@@ -357,20 +420,19 @@ class RandomData(bpy.types.Operator):
         # this is mostly from sapling/utils.py#933
         max_stem_radius = (sapling.scale + sapling.scaleV) * sapling.ratio * sapling.scale0 * (1+sapling.scaleV0)
         for bone in context.scene.objects["treeArm"].data.bones:
-            #bone.envelope_distance = max_stem_radius / 3.
-            pass
+            bone.envelope_distance = max_stem_radius / 3.
+            #pass
             
         """ To make YABEE export the animation correctly we need vertex groups 
-        also for the tree mesh. The armature envelope parent option will keep
+        for the tree mesh, too. This armature envelope parent option will keep
         the current parent (=treeArm) / child (=tree) relationship and create
-        vertex groups.
-        """
+        vertex groups. """
         tree = self.select_tree(context)
         treeArm = context.blend_data.objects["treeArm"]
         treeArm.select = True
         context.scene.objects.active = treeArm
-        #bpy.ops.object.parent_set(type='ARMATURE_ENVELOPE')
-        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+        bpy.ops.object.parent_set(type='ARMATURE_ENVELOPE')
+        #bpy.ops.object.parent_set(type='ARMATURE_AUTO')
         
         """
         # if you choose to unparent tree and leaves from treeArm, follow this.
@@ -391,8 +453,8 @@ class RandomData(bpy.types.Operator):
         bpy.ops.nla.bake(frame_start=0,
                          frame_end=sapling.loopFrames,
                          only_selected=False, bake_types={'POSE'})
-        print("Actions present after baking:", [action for action in bpy.data.actions])
-        print("Seed:", sapling.seed)
+        #print("Actions present after baking:", [action for action in bpy.data.actions])
+        #print("Seed:", sapling.seed)
         
         # remove the original action Sapling created, as it's of no use.
         bpy.data.actions.remove(bpy.data.actions["windAction"], do_unlink=True)
@@ -410,6 +472,8 @@ class RandomData(bpy.types.Operator):
         for ob in context.scene.objects:
             ob.select = (ob.type in ("MESH", "ARMATURE") and 
                          ob.name.startswith(("tree", "leaves")))
+                         # EXPERIMENTAL
+                         #("leaf" in ob.name or ob.name.startswith("tree")))
 
         context.scene.yabee_settings.opt_tbs_proc = 'NO'
         context.scene.yabee_settings.opt_anims_from_actions = True
@@ -429,7 +493,26 @@ class RandomData(bpy.types.Operator):
         #    dirname(dirname(context.window_manager.bark_base_tex)), 
         #    "freshtree.egg"))
         bpy.ops.export.panda3d_egg(filepath=context.window_manager.egg_fn)
-            
+
+        data = {}
+        for a, b in (sapling.as_keywords(ignore=("chooseSet", "presetName", 
+            "limitImport", "do_update", "overwrite", "leafDupliObj"))).items():
+            # If the property is a vector property then add the slice to the list
+            try:
+                len(b)
+                data[a] = b[:]
+            except:  # Otherwise, it is fine so just add it
+                data[a] = b
+
+        """ bpy.ops.sapling.exportdata is very hackish. it will only allow
+        writing to preset directories, use eval etc. """
+        #bpy.ops.sapling.exportdata(data=repr([
+        # repr(data), basename(context.window_manager.egg_fn), True]))
+
+        # our implementation saves to a file named like the EGG.
+        with open(splitext(context.window_manager.egg_fn)[0] + ".py", "w") as f:
+            f.write(repr(data))
+
         #TODO find a sane solution to the (automatic) vertex group creation
         # problem of the tree mesh. stick with ARMATURE_AUTO and forget about
         # the envelopes. Or use ARMATURE_ENVELOPE after finding a sane size for
@@ -438,13 +521,83 @@ class RandomData(bpy.types.Operator):
         #TODO use leaf_DupliObj for non-flat leaves?
         
         #TODO save blend file?
-        #TODO save presets. use sapling for that?
-        
         #TODO seems after using Quicktree's buttons, switching the tabs in Sapling
         # may reset the tree. Maybe we need to redraw the toolbar.
+        
         # CodeManX: 
         # tag the appropriate context area.
         # bpy.context.area.tag_redraw() # granted the context area is the one you are working with 
+
+def create_bipart_leaf(context):
+    "# DUPLI LEAVES"
+    leaf_name = "bipart_leaf"  # must always contain "leaf"
+    sapling = context.active_operator
+    # this creates UVs which seem ok
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=3,
+                                    y_subdivisions=2,
+                                    radius=sapling.leafScale/2,
+                                    calc_uvs=True,
+                                    view_align=False, 
+                                    enter_editmode=True,
+                                    location=(0, 0, 0),
+                                    layers=(True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False))
+
+    context.scene.objects.active.name = leaf_name
+    bm = bmesh.from_edit_mesh(context.scene.objects.active.data)
+    
+    # raise the vertices of the central edge
+    for edge in bm.edges:
+        if not edge.is_boundary:
+            for vert in edge.verts:
+                vert.co.z += sapling.leafScale/8
+
+    #~ # Create mesh
+    #~ me = bpy.data.meshes.new('bipart_leaf')
+    #~ # Create object
+    #~ ob = bpy.data.objects.new('bipart_leaf', me) 
+    #~ ob.location = (-8, 0, 0)
+    #~ ob.show_name = True
+    #~ # Link object to scene
+    #~ context.scene.objects.link(ob)
+    
+    # Get a BMesh representation
+    #bm = bmesh.new() # create an empty BMesh
+    #bm.from_mesh(me) # fill it in from a Mesh
+
+        
+    # Hot to create vertices
+    #vertex1 = bm.verts.new( (0.0, 0.0, 3.0) )
+    #vertex2 = bm.verts.new( (2.0, 0.0, 3.0) )
+    #vertex3 = bm.verts.new( (2.0, 2.0, 3.0) )
+    #vertex4 = bm.verts.new( (0.0, 2.0, 3.0) )
+
+    # Initialize the index values of this sequence.
+    #bm.verts.index_update()
+
+    # How to create edges 
+    #bm.edges.new( (vertex1, vertex2) )
+    #bm.edges.new( (vertex2, vertex3) )
+    #bm.edges.new( (vertex3, vertex4) )
+    #bm.edges.new( (vertex4, vertex1) )
+
+    # How to create a face
+    # it's not necessary to create the edges before, I made it only to show how create 
+    # edges too
+    #bm.faces.new( (vertex1, vertex2, vertex3, vertex4) )
+
+    # Finish up, write the bmesh back to the mesh
+    #bm.to_mesh(me)
+    
+    #TODO get origin right
+    
+    # Finish up, write the bmesh back to the mesh
+    bmesh.update_edit_mesh(context.scene.objects.active.data, False, False)
+    # Set mode back to object. Sapling operator will not be active otherwise.
+    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+    # Apply location.
+    #bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+
+    return leaf_name
 
 def register():
     bpy.utils.register_module(__name__)
@@ -455,7 +608,7 @@ def register():
     bpy.types.WindowManager.leaf_base_tex = bpy.props.StringProperty(
         name="Leaf Basecolor Texture", subtype="FILE_PATH")
     bpy.types.WindowManager.egg_fn = bpy.props.StringProperty(
-        name="Egg File", subtype="FILE_PATH")
+        name="EGG File", subtype="FILE_PATH")
 
 def unregister():
     bpy.utils.unregister_module(__name__)

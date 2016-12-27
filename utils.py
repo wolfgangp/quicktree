@@ -1,8 +1,3 @@
-"""
-quick, click-thru
-tree creation for games. slightly low-poly anyway.
-"""
-
 from random import uniform, randint, choice, seed, gauss
 
 viewing_presets = {
@@ -35,6 +30,7 @@ wind = {
 }
 
 export_presets = {
+"do_update": True,
 "showLeaves": True,
 "useArm": True,
 "armLevels": 0,  # means all levels. earlier tried 2 which is n-1
@@ -50,6 +46,10 @@ leaves = {
 "leaves": (8, 14),
 "leafScale": (0.8, 1.13),
 }
+
+# custom_leaves = {
+# "leafShape": "dFace"  # DUPLI LEAVES
+# }
 
 """
 ######## Very coarse randomization
